@@ -1,0 +1,217 @@
+generator client {
+  provider        = "prisma-client"
+  output          = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ==========================================
+// Auth - Tabela de usuários própria
+// ==========================================
+
+model users {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email           String    @unique
+  password_hash   String
+  name            String
+  role            String    @default("viewer") // master | viewer
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime  @default(now()) @db.Timestamptz(6)
+
+  mass_messages   mass_messages[]
+  timeline        timeline[]
+}
+
+// ==========================================
+// CRM Models
+// ==========================================
+
+model leads {
+  id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name             String?
+  primary_email    String?         @unique
+  secondary_emails String[]
+  whatsapp         String?
+  cpf              String?
+  city             String?
+  state            String?
+  address          String?
+  birth_date       DateTime?       @db.Timestamptz(6)
+  tags             String[]
+  origin           String?
+  utm_source       String?
+  utm_medium       String?
+  utm_campaign     String?
+  points           Int             @default(0)
+  temperature      String          @default("inactive")
+  stage            String          @default("lead")
+  total_spent      Decimal         @default(0) @db.Decimal(10, 2)
+  purchase_count   Int             @default(0)
+  last_purchase_at DateTime?       @db.Timestamptz(6)
+  created_at       DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime        @default(now()) @db.Timestamptz(6)
+
+  recoveries       recoveries[]
+  sales            sales[]
+  subscriptions    subscriptions[]
+  timeline         timeline[]
+}
+
+model products {
+  id                       String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                     String
+  type                     String             @default("digital")
+  default_price            Decimal            @default(0) @db.Decimal(10, 2)
+  status                   String             @default("active")
+  external_ids             Json               @default("[]")
+  is_subscription          Boolean            @default(false)
+  subscription_period_days Int                @default(365)
+  renewal_link             String?
+  created_at               DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime           @default(now()) @db.Timestamptz(6)
+
+  product_mappings         product_mappings[]
+  sales                    sales[]
+  subscriptions            subscriptions[]
+}
+
+model sales {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  lead_id        String?   @db.Uuid
+  product_id     String?   @db.Uuid
+  product_name   String?
+  transaction_id String?
+  platform       String?
+  amount         Decimal   @default(0) @db.Decimal(10, 2)
+  status         String    @default("approved")
+  payment_method String?
+  points_awarded Int       @default(0)
+  purchased_at   DateTime  @default(now()) @db.Timestamptz(6)
+  created_at     DateTime  @default(now()) @db.Timestamptz(6)
+
+  leads          leads?    @relation(fields: [lead_id], references: [id], onUpdate: NoAction)
+  products       products? @relation(fields: [product_id], references: [id], onUpdate: NoAction)
+}
+
+model recoveries {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  lead_id          String?   @db.Uuid
+  transaction_id   String?
+  platform         String?
+  amount           Decimal   @default(0) @db.Decimal(10, 2)
+  attempted_at     DateTime  @default(now()) @db.Timestamptz(6)
+  follow_up_status String    @default("pending")
+  notes            String?
+  created_at       DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime  @default(now()) @db.Timestamptz(6)
+
+  leads            leads?    @relation(fields: [lead_id], references: [id], onUpdate: NoAction)
+}
+
+model notifications {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type        String?
+  title       String?
+  message     String?
+  status      String    @default("unread")
+  data        Json      @default("{}")
+  read        Boolean   @default(false)
+  created_at  DateTime  @default(now()) @db.Timestamptz(6)
+  resolved_at DateTime? @db.Timestamptz(6)
+}
+
+model timeline {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  lead_id         String?   @db.Uuid
+  type            String
+  content         String?
+  metadata        Json      @default("{}")
+  created_by      String?   @db.Uuid
+  created_by_name String?
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+
+  users           users?    @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  leads           leads?    @relation(fields: [lead_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model mass_messages {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title           String?
+  content         String?
+  filters         Json      @default("{}")
+  status          String    @default("scheduled")
+  scheduled_at    DateTime? @db.Timestamptz(6)
+  started_at      DateTime? @db.Timestamptz(6)
+  completed_at    DateTime? @db.Timestamptz(6)
+  sent_count      Int       @default(0)
+  failed_count    Int       @default(0)
+  recipient_count Int       @default(0)
+  created_by      String?   @db.Uuid
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+
+  users           users?    @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+}
+
+model settings {
+  key        String    @id
+  value      Json
+  updated_at DateTime  @default(now()) @db.Timestamptz(6)
+}
+
+model subscription_settings {
+  id               String    @id
+  days_before      Int
+  message_template String
+  is_active        Boolean   @default(true)
+  sort_order       Int       @default(0)
+  created_at       DateTime  @default(now()) @db.Timestamptz(6)
+}
+
+model subscriptions {
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  lead_id                String    @db.Uuid
+  product_id             String    @db.Uuid
+  status                 String    @default("active")
+  start_date             DateTime  @default(now()) @db.Timestamptz(6)
+  end_date               DateTime  @db.Timestamptz(6)
+  opted_out              Boolean   @default(false)
+  opted_out_at           DateTime? @db.Timestamptz(6)
+  opt_out_token          String?   @unique
+  opt_out_reason         String?
+  last_notification_step Int?
+  last_notification_at   DateTime? @db.Timestamptz(6)
+  created_at             DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime  @default(now()) @db.Timestamptz(6)
+
+  leads                  leads     @relation(fields: [lead_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  products               products  @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([lead_id, product_id])
+}
+
+model pending_webhooks {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  origin      String?
+  payload     Json?
+  status      String    @default("awaiting_config")
+  received_at DateTime  @default(now()) @db.Timestamptz(6)
+}
+
+model product_mappings {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  imported_name     String    @unique
+  target_product_id String?   @db.Uuid
+  created_at        DateTime  @default(now()) @db.Timestamptz(6)
+
+  products          products? @relation(fields: [target_product_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model webhook_mappings {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  origin_name     String    @unique
+  field_mappings  Json      @default("{}")
+  status_mappings Json      @default("{}")
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+}
